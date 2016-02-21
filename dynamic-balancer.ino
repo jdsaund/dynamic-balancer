@@ -85,6 +85,7 @@ int x5;
 int y5;
 
 String sysStatus;
+bool clip = false;
 
 volatile bool loopEnabled = false;
 
@@ -169,8 +170,9 @@ void loop() {
     tftDynamicGraphicsDraw();
     tftWaveform();
 
-    if (magnitude > 30000) {
+    if (clip) {
       sysStatus = "CLIP!!";
+      clip = false;
     } else {
       sysStatus = "    ok";
     }
@@ -344,6 +346,11 @@ void ProcessSample(int16_t sample)
   Q0 = coeff * Q1 - Q2 + (float) sample;
   Q2 = Q1;
   Q1 = Q0;
+
+  if (sample >= 32768 || sample <= -32768)
+  {
+    clip = true;
+  }
 }
 
 void GetRealImag(float *realPart, float *imagPart)
