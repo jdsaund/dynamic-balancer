@@ -89,7 +89,7 @@ String sysStatus;
 volatile bool loopEnabled = false;
 
 void setup(void) {
-  //Serial.begin(115200);
+  Serial.begin(115200);
   
   tft.initR(INITR_BLACKTAB);   // initialize a ST7735S chip, black tab
   tft.setTextColor(textColour, bgColour);
@@ -129,14 +129,19 @@ void loop() {
     if (i <= 50){
       i++;
     }
+    
+    delayMicroseconds(100);
   }
 
   if(ticker == 2){
     sample[i] = accelgyro.getAccelerationX();
     time[i] = micros() - start;
+    
     if (i <= 50){
       i++;
     }
+    
+    delayMicroseconds(100);
   }
     
   if (ticker == 3){// || !loop2Complete) { // if its this one's turn, or if this one is incomplete
@@ -145,6 +150,7 @@ void loop() {
         cycletime[k] = (float)time[k] / (float)loopTime - 0.049;
         if (cycletime[k] < 1.0){
           ProcessSample(sample[k]);
+          Serial.println(time[k]);
           N++;
         }
       }
@@ -159,7 +165,7 @@ void loop() {
   if(ticker == 4){
     tftPlot();
     
-    rpm = 30000000 / loopTime;
+    rpm = 120000000 / loopTime;
     polarMath();
     tftDynamicGraphicsDraw();
 
@@ -237,11 +243,11 @@ void tftDynamicGraphicsDraw(){
 
   if (angle >= 100){
     tft.println((int)angle);
-  } else  if (angle < 100 && angle >= 10){
-    tft.println(" ");
+  } else if (angle < 100 && angle >= 10){
+    tft.print(" ");
     tft.println((int)angle);
-  } else  if (angle < 10 && angle >= 0){
-    tft.println("  ");
+  } else if (angle < 10 && angle >= 0){
+    tft.print("  ");
     tft.println((int)angle);
   } else if (angle < 0 && angle > -10){
     tft.println(360 + (int)angle);
@@ -249,29 +255,22 @@ void tftDynamicGraphicsDraw(){
     tft.println(360 + (int)angle);
   }
 
-//  // rpm readout
-//  if (rpm < 2000) {
-//    tft.setTextColor(Cyan, bgColour);
-//  } else if (rpm > 7000){
-//    tft.setTextColor(Red, bgColour);
-//  } else {
-//    tft.setTextColor(Green, bgColour);
-//  }
-    
+  // rpm readout
+  tft.setCursor(95, 1);
   if (rpm < 10000 && rpm >= 1000){
-    tft.setCursor(100, 1);
+    tft.print(" ");
     tft.println((int)rpm);
   } else if (rpm < 1000 && rpm >= 100){
-    tft.setCursor(105, 1);
+    tft.print("  ");
     tft.println((int)rpm);
   } else  if (rpm < 100 && rpm >= 10){
-    tft.setCursor(110, 1);
+    tft.print("   ");
     tft.println((int)rpm);
   } else  if (rpm < 10 && rpm >= 0){
-    tft.setCursor(115, 1);
+    tft.print("    ");
     tft.println((int)rpm);
   } else {
-    tft.setCursor(95, 1);
+    tft.println((int)rpm);
   }
 
   tft.setCursor(89, 9);
@@ -400,7 +399,6 @@ void tftPlot(void)
       y4[k] = sample[k+1] / 800 + 59;
       
       tft.drawLine(x3[k],y3[k],x4[k],y4[k], featureColour1);
-      //tft.drawPixel(x3[k], y3[k], Red); 
     }
   }
 
