@@ -152,14 +152,13 @@ void loop() {
         cycletime[k] = (float)time[k] / (float)loopTime - 0.049;
         if (cycletime[k] < 1.0){
           ProcessSample(sample[k]);
-          Serial.println(time[k]);
           N++;
         }
       }
       
     i=0;
-    realRaw = getReal();
-    imagRaw = getImag();
+    realRaw = getReal() / 1671.8; // dividing by 1671.8 converts the reading into ms^-2
+    imagRaw = getImag() / 1671.8; // dividing by 1671.8 converts the reading into ms^-2
     InitGoertzel();
     N=0;
   }
@@ -190,12 +189,11 @@ void testdrawtext(char *text, uint16_t color) {
 void polarMath(){
     // smooth the real and imaginary parts
     real = (realRaw*(1-0.9))+(real*0.9);
+    Serial.println(real);
     imag = (imagRaw*(1-0.9))+(imag*0.9);
+    Serial.println(imag);
     magnitude = sqrt(real*real + imag*imag);
-    angle = degrees(atan2(real,imag)) + 80;
-//    if (angle < 0) {
-//      angle = 360 - angle;
-//    }
+    angle = degrees(atan2(real,imag)) + 80; // +80 dgerees aligns the goertzel estimate with the actual measurements
   
 //  float magMultiplier;
 //  if(magmax < magnitude){
@@ -222,20 +220,14 @@ void tftDynamicGraphicsDraw(){
 //  }
   tft.setTextColor(textColour, bgColour);
   tft.setCursor(25, 1);
-  if (magnitude < 10000 && magnitude >= 1000){
+  if (magnitude < 100 && magnitude >= 10){
     tft.print(" ");
-    tft.println((int)magnitude);
-  } else if (magnitude < 1000 && magnitude >= 100){
-    tft.print("  ");
-    tft.println((int)magnitude);
-  } else  if (magnitude < 100 && magnitude >= 10){
-    tft.print("   ");
-    tft.println((int)magnitude);
+    tft.println(magnitude);
   } else  if (magnitude < 10 && magnitude >= 0){
-    tft.print("    ");
-    tft.println((int)magnitude);
+    tft.print("  ");
+    tft.println(magnitude);
   } else {
-    tft.println((int)magnitude);
+    tft.println(magnitude);
   }
 
   // angle readout
