@@ -108,13 +108,15 @@ void setup(void) {
   digitalWrite(13, HIGH);
   delay(10);
 
-  tftFixedGraphics();
-
   accelgyro.initialize();
   accelgyro.setRate(0x00); // 1khz/ (1+0) = 1khz
   
   // verify connection
   sysStatus = accelgyro.testConnection() ? "    ok" : "i2cErr";
+
+  tftFixedGraphics();
+  tftDynamicGraphicsDraw();
+  tftWaveform();
 
   // setup tacho
   attachInterrupt(3, ISRspeed, RISING);//number 3 (on digital pin 1) 
@@ -163,11 +165,10 @@ void loop() {
   }
   
   if(ticker == 4){
-    tftPlot();
-    
     rpm = 120000000 / loopTime;
     polarMath();
     tftDynamicGraphicsDraw();
+    tftWaveform();
 
     if (magnitude > 30000) {
       sysStatus = "CLIP!!";
@@ -388,7 +389,7 @@ float getImag(void)
   return result;
 }
 
-void tftPlot(void)
+void tftWaveform(void)
 {
   for (int k=0; k <= 49; k++){ // only show the first 49 samples
     if (cycletime[k] <= 1.0 && cycletime[k+1] > 0){
