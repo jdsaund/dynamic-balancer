@@ -199,6 +199,8 @@ void setup(void) {
   tft.print("polar");
   tft.setCursor(30, 62);
   tft.print("points");
+  tft.setCursor(30, 73);
+  tft.print("interactive");
 
   while(1){
     button1State = digitalRead(button1Pin);
@@ -206,13 +208,15 @@ void setup(void) {
 
     if(button1State == HIGH)
       {
-        if(mode < 2){
+        if(mode < 3){
           mode++;
         } else {
           mode = 0;
         }
         tft.drawRect(28, 38, 72, 11, bgColour);
         tft.drawRect(28, 49, 72, 11, bgColour);
+        tft.drawRect(28, 60, 72, 11, bgColour);
+        tft.drawRect(28, 71, 72, 11, bgColour);
       }
 
     if(mode == 0){
@@ -224,6 +228,10 @@ void setup(void) {
     if(mode == 2){
       tft.drawRect(28, 60, 72, 11, featureColour2);
     }
+    if(mode == 3){
+      tft.drawRect(28, 71, 72, 11, featureColour2);
+    }
+
 
   if(button2State == HIGH)
     {
@@ -246,6 +254,8 @@ void setup(void) {
     tftPlotPolar();
   } else if(mode == 2){
     tftPlotPoints();
+  } else if(mode == 3){
+    tftPlotPolarInteractive();
   }
   
 }
@@ -301,6 +311,8 @@ void loop() {
       tftPlotPolar();
     } else if(mode == 2){
       tftPlotPoints();
+    } else if(mode == 3){
+      tftPlotPolarInteractive();
     }
 
     if (clip) {
@@ -423,10 +435,12 @@ void tftStaticGraphics() {
   tft.setTextColor(textColour);
   if(mode == 0){
     tft.print(" [waveform]");
-  } else if(mode == 0){
+  } else if(mode == 1){
     tft.print(" [polar]");
-  } else {
+  } else if(mode == 2){
     tft.print(" [points]");
+  } else if(mode == 3){
+    tft.print(" [interactive]");
   }
 
   tft.drawFastHLine(0, 18, 128, lightLineColour);
@@ -609,7 +623,6 @@ void tftPlotPolar(void)
   }
   
   tft.drawLine(x1, y1, x2, y2, bgColour);
-  tft.fillCircle(x2, y2, 2, bgColour);
   
   x2 = x1 + magMultiplier*radiusPolarMax * cos(radians(-angle));
   y2 = y1 + magMultiplier*radiusPolarMax * sin(radians(-angle));
@@ -653,3 +666,81 @@ void tftPlotPoints(void)
   }
   tft.drawFastHLine(0, 59, 128, lightLineColour);
 }
+
+void tftPlotPolarInteractive(void)
+{
+  static float vector1[2]; // 0 = x2, 1 = y2
+  static float vector2[2]; // 0 = x2, 1 = y2
+
+  static bool storeVector1, storeVector2 = false;
+  
+  float magMultiplier;
+  if(polarScale[range] < magnitude){
+    magMultiplier = 1;
+  } else {
+    magMultiplier = magnitude / polarScale[range];
+  }
+  
+  tft.drawLine(x1, y1, x2, y2, bgColour);
+  
+  x2 = x1 + magMultiplier*radiusPolarMax * cos(radians(-angle));
+  y2 = y1 + magMultiplier*radiusPolarMax * sin(radians(-angle));
+
+  tft.drawFastVLine(64, 29, 104, lightLineColour);
+  tft.drawFastHLine(13, 80, 104, lightLineColour);
+  tft.drawCircle(x1, y1, radiusOutline * 0.5, lightLineColour);
+  tft.drawCircle(x1, y1, radiusOutline, lightLineColour);
+
+  tft.drawLine(x1, y1, x2, y2, featureColour2);
+
+  button2State = digitalRead(button2Pin);
+
+    if (storeVector1 == true && button2State == HIGH){
+    storeVector2 = true; 
+    vector2[0] = x2;
+    vector2[1] = y2;
+  }
+  
+  if(storeVector1 == false && button2State == HIGH){
+    storeVector1 = true; 
+    vector1[0] = x2;
+    vector1[1] = y2;
+  }
+
+  if (storeVector1 == true){
+    tft.drawLine(x1, y1, vector1[0],  vector1[1], lightLineColour);
+  }
+
+  if (storeVector2 == true){
+    showResults(vector1, vector2);
+    while(1){};
+  }
+}
+
+void showResults(float vector1[2], float vector2[2])
+{
+  tft.fillScreen(bgColour);
+  tft.drawFastVLine(64, 29, 104, lightLineColour);
+  tft.drawFastHLine(13, 80, 104, lightLineColour);
+  tft.drawCircle(x1, y1, radiusOutline * 0.5, lightLineColour);
+  tft.drawCircle(x1, y1, radiusOutline, lightLineColour);
+
+  int vector3[2]; // corrected index mass vector
+  int vector4[2]; // corrected unbalance mass vector
+  float vector4angle;
+  float vector4magnitude;
+  
+  vector3[0] = (vector2[0] - x1) - (vector1[0] - x1);
+  vector3[1] = (vector2[1] - y1) - (vector1[1] - y1);
+
+  vector4angle = atan2(vector1[1] - y1, vector1[0] - x1) - atan2(vector3[1], vector3[0]);
+  vector4magnitude = sqrt((vector1[0] - x1) * (vector1[0] - x1) + (vector1[1] - y1) * (vector1[1] - y1));
+  vector4[0] = vector4magnitude * cos(vector4angle);
+  vector4[1] = vector4magnitude * sin(vector4angle);
+
+  tft.drawLine( x1,  y1,  vector1[0],  vector1[1], lightLineColour);
+  tft.drawLine( x1,  y1,  vector2[0],  vector2[1], darkLineColour);
+  tft.drawLine( x1,  y1,  x1 + vector3[0],  y1 + vector3[1], featureColour1);
+  tft.drawLine( x1,  y1,  x1 + vector4[0],  y1 + vector4[1], featureColour2);
+}
+
