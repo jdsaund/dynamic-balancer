@@ -48,15 +48,15 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
 
 const float p = 3.1415926;
 int rpm;
-int radiusOutline = 42;
-int radiusPolarMax = 40;
-int x1 = 64;
-int y1 = 64;
-float x2;
-float y2;
+const int radiusOutline = 52;
+const int radiusPolarMax = 52;
+const int x1 = 64;
+const int y1 = 80;
+float x2 = x1;
+float y2 = y1;
 float angle = 0;
 float magnitude = 0;
-float magmax = 1000; // 1000 milli-g's
+float magmax = 2; // 1000 milli-g's
 float coeff;
 float Q1;
 float Q2;
@@ -87,10 +87,21 @@ int y5;
 String sysStatus;
 bool clip = false;
 
-volatile bool loopEnabled = false;
+int button1State;
+int button2State;
+int button1Pin = 4;
+int button2Pin = 5;
+
+static int range = 0; // 0 = +/-2g, 1 = +/-4g, 2 = +/-8g, 3 = +/-16g
+static int mode = 0;  // 0 = waveform, 1 = polar
+const float rangeScale[4] = {0.00059816, 0.00119633, 0.00239265, 0.00478530}; // 1 / (32767 / g range / 9.8)
+const float polarScale[4] = {19.6, 39.2, 78.4, 156.8};
 
 void setup(void) {
   Serial.begin(115200);
+
+  pinMode(button1Pin, INPUT);
+  pinMode(button2Pin, INPUT);
   
   tft.initR(INITR_BLACKTAB);   // initialize a ST7735S chip, black tab
   tft.setTextColor(textColour, bgColour);
@@ -115,13 +126,121 @@ void setup(void) {
   // verify connection
   sysStatus = accelgyro.testConnection() ? "    ok" : "i2cErr";
 
-  tftFixedGraphics();
-  tftDynamicGraphicsDraw();
-  tftWaveform();
-
   // setup tacho
   attachInterrupt(3, ISRspeed, RISING);//number 3 (on digital pin 1) 
   digitalWrite(13, LOW);
+
+  // select range
+  tft.setTextColor(textColourLight, bgColour);
+  tft.setCursor(1, 9);
+  tft.print("accelerometer");
+  tft.setCursor(1, 17);
+  tft.print("range: ");
+
+  tft.setCursor(30, 40);
+  tft.print("+/-  2g");
+  tft.setCursor(30, 51);
+  tft.print("+/-  4g");
+  tft.setCursor(30, 62);
+  tft.print("+/-  8g");
+  tft.setCursor(30, 73);
+  tft.print("+/- 16g");
+
+  while(1){
+    button1State = digitalRead(button1Pin);
+    button2State = digitalRead(button2Pin);
+
+    if(button1State == HIGH)
+      {
+        if(range < 3){
+          range++;
+        } else {
+          range = 0;
+        }
+        tft.drawRect(28, 38, 72, 11, bgColour);
+        tft.drawRect(28, 49, 72, 11, bgColour);
+        tft.drawRect(28, 60, 72, 11, bgColour);
+        tft.drawRect(28, 71, 72, 11, bgColour);
+      }
+
+    if(range == 0){
+      tft.drawRect(28, 38, 72, 11, featureColour2);
+    }
+    if(range == 1){
+      tft.drawRect(28, 49, 72, 11, featureColour2);
+    }
+    if(range == 2){
+      tft.drawRect(28, 60, 72, 11, featureColour2);
+    }
+    if(range == 3){
+      tft.drawRect(28, 71, 72, 11, featureColour2);
+    }
+
+  if(button2State == HIGH)
+    {
+      break;
+    }
+
+    delay(200);
+  }
+
+  tft.fillScreen(bgColour);
+
+  // select plot mode
+  tft.setTextColor(textColourLight, bgColour);
+  tft.setCursor(1, 9);
+  tft.print("plot");
+  tft.setCursor(1, 17);
+  tft.print("mode: ");
+
+  tft.setCursor(30, 40);
+  tft.print("waveform");
+  tft.setCursor(30, 51);
+  tft.print("polar");
+
+  while(1){
+    button1State = digitalRead(button1Pin);
+    button2State = digitalRead(button2Pin);
+
+    if(button1State == HIGH)
+      {
+        if(mode < 1){
+          mode++;
+        } else {
+          mode = 0;
+        }
+        tft.drawRect(28, 38, 72, 11, bgColour);
+        tft.drawRect(28, 49, 72, 11, bgColour);
+      }
+
+    if(mode == 0){
+      tft.drawRect(28, 38, 72, 11, featureColour2);
+    }
+    if(mode == 1){
+      tft.drawRect(28, 49, 72, 11, featureColour2);
+    }
+
+  if(button2State == HIGH)
+    {
+      break;
+    }
+
+    delay(200);
+  }
+
+  tft.fillScreen(bgColour);
+
+  accelgyro.setFullScaleAccelRange(range);
+
+  tftStaticGraphics();
+  tftDynamicText();
+
+  if(mode==0){
+    tftPlotWaveform();
+  } else {
+    
+  }
+  
 }
 
 void loop() {
@@ -158,8 +277,8 @@ void loop() {
       }
       
     i=0;
-    realRaw = getReal() / 1671.8; // dividing by 1671.8 converts the reading into ms^-2
-    imagRaw = getImag() / 1671.8; // dividing by 1671.8 converts the reading into ms^-2
+    realRaw = getReal() * rangeScale[range];
+    imagRaw = getImag() * rangeScale[range];
     InitGoertzel();
     N=0;
   }
@@ -167,8 +286,14 @@ void loop() {
   if(ticker == 4){
     rpm = 120000000 / loopTime;
     polarMath();
-    tftDynamicGraphicsDraw();
-    tftWaveform();
+    tftDynamicText();
+
+    if(mode == 0)
+    {
+      tftPlotWaveform();
+    } else {
+      tftPlotPolar();
+    }
 
     if (clip) {
       sysStatus = "CLIP!!";
@@ -181,45 +306,15 @@ void loop() {
   }
 }
 
-void testdrawtext(char *text, uint16_t color) {
-  tft.setCursor(0, 0);
-  tft.setTextColor(color);
-  tft.setTextWrap(true);
-  tft.print(text);
-}
-
 void polarMath(){
     // smooth the real and imaginary parts
     real = (realRaw*(1-0.9))+(real*0.9);
-    Serial.println(real);
     imag = (imagRaw*(1-0.9))+(imag*0.9);
-    Serial.println(imag);
     magnitude = sqrt(real*real + imag*imag);
     angle = degrees(atan2(real,imag)) + 80; // +80 dgerees aligns the goertzel estimate with the actual measurements
-  
-//  float magMultiplier;
-//  if(magmax < magnitude){
-//    magMultiplier = 1;
-//  } else {
-//    magMultiplier = magnitude / magmax;
-//  }
-//  
-//  x2 = x1 + magMultiplier*radiusPolarMax * cos(radians(-angle));
-//  y2 = y1 + magMultiplier*radiusPolarMax * sin(radians(-angle));
 }
 
-void tftDynamicGraphicsDraw(){
-  // magnitude readout
-//   if (magnitude < 500) {
-//    tft.drawLine(x1, y1, x2, y2, Green);
-//    tft.setTextColor(Green, bgColour);
-//  } else if (magnitude > 1000){
-//    tft.drawLine(x1, y1, x2, y2, Red);
-//    tft.setTextColor(Red, bgColour);
-//  } else {
-//    tft.drawLine(x1, y1, x2, y2, Orange);
-//    tft.setTextColor(Orange, bgColour);
-//  }
+void tftDynamicText(){
   tft.setTextColor(textColour, bgColour);
   tft.setCursor(25, 1);
   if (magnitude < 100 && magnitude >= 10){
@@ -277,12 +372,7 @@ void tftDynamicGraphicsDraw(){
   tft.print(sysStatus);
 }
 
-void tftDynamicGraphicsErase(){
-  // polar arrow
-  tft.drawLine(x1, y1, x2, y2, bgColour);
-}
-
-void tftFixedGraphics() {
+void tftStaticGraphics() {
   tft.setTextWrap(false);
   tft.setTextColor(textColourLight);
   tft.setTextSize(0);
@@ -305,8 +395,64 @@ void tftFixedGraphics() {
   tft.setCursor(64, 9);
   tft.print("sys:");
 
+  // range readout
+  tft.setCursor(1, 151);
+  tft.print("range: ");
+  tft.setTextColor(textColour);
+  if(range == 0){
+    tft.print("[+/- 2g]");
+  } else if(range == 1){
+    tft.print("[+/- 4g]");
+  } else if(range == 2){
+    tft.print("[+/- 8g]");
+  } else if(range == 3){
+    tft.print("[+/- 16g]");
+  }
+
+  // mode readout
+  tft.setTextColor(textColourLight);
+  tft.setCursor(1, 143);
+  tft.print("mode: ");
+  tft.setTextColor(textColour);
+  if(mode == 0){
+    tft.print(" [waveform]");
+  } else{
+    tft.print(" [polar]");
+  }
+
   tft.drawFastHLine(0, 18, 128, lightLineColour);
-  tft.drawFastHLine(0, 100, 128, lightLineColour);
+  tft.drawFastHLine(0, 141, 128, lightLineColour);
+
+  if(mode == 0)
+  {
+    tft.drawFastHLine(0, 100, 128, lightLineColour);
+
+    tft.drawFastVLine(32, 100, 3, lightLineColour);
+    tft.setCursor(20, 105);
+    tft.print("-180");
+
+    tft.drawFastVLine(64, 100, 3, lightLineColour);
+    tft.setCursor(62, 105);
+    tft.print("0");
+
+    tft.drawFastVLine(96, 100, 3, lightLineColour);
+    tft.setCursor(84, 105);
+    tft.print("+180");
+
+  } else {
+    tft.drawFastVLine(64, 29, 104, lightLineColour);
+    tft.drawFastHLine(13, 80, 104, lightLineColour);
+    tft.drawCircle(x1, y1, radiusOutline * 0.5, lightLineColour);
+    tft.drawCircle(x1, y1, radiusOutline, lightLineColour);
+  
+    tft.setTextColor(textColourLight);
+    tft.setCursor(120, 66);
+    tft.print("+");
+    tft.setCursor(120, 77);
+    tft.print("0");
+    tft.setCursor(120, 87);
+    tft.print("-");
+  }
 }
 
 void ISRspeed()
@@ -388,7 +534,7 @@ float getImag(void)
   return result;
 }
 
-void tftWaveform(void)
+void tftPlotWaveform(void)
 {
   for (int k=0; k <= 49; k++){ // only show the first 49 samples
     if (cycletime[k] <= 1.0 && cycletime[k+1] > 0){
@@ -417,8 +563,33 @@ void tftWaveform(void)
     tft.drawFastVLine(scaledAngle + 128, 20, 79, featureColour2);
   }
   tft.drawFastHLine(0, 59, 128, lightLineColour);
-  tft.drawFastVLine(64, 55, 8, darkLineColour);
-  tft.drawFastVLine(32, 57, 4, darkLineColour);
-  tft.drawFastVLine(96, 57, 4, darkLineColour);
+}
+
+void tftPlotClear(void)
+{
+  tft.fillRect(0, 18, 128, 100, bgColour);
+}
+
+void tftPlotPolar(void)
+{
+  float magMultiplier;
+  if(polarScale[range] < magnitude){
+    magMultiplier = 1;
+  } else {
+    magMultiplier = magnitude / polarScale[range];
+  }
+  
+  tft.drawLine(x1, y1, x2, y2, bgColour);
+  tft.fillCircle(x2, y2, 2, bgColour);
+  
+  x2 = x1 + magMultiplier*radiusPolarMax * cos(radians(-angle));
+  y2 = y1 + magMultiplier*radiusPolarMax * sin(radians(-angle));
+
+  tft.drawFastVLine(64, 29, 104, lightLineColour);
+  tft.drawFastHLine(13, 80, 104, lightLineColour);
+  tft.drawCircle(x1, y1, radiusOutline * 0.5, lightLineColour);
+  tft.drawCircle(x1, y1, radiusOutline, lightLineColour);
+
+  tft.drawLine(x1, y1, x2, y2, featureColour2);
 }
 
