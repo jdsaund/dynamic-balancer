@@ -197,6 +197,8 @@ void setup(void) {
   tft.print("waveform");
   tft.setCursor(30, 51);
   tft.print("polar");
+  tft.setCursor(30, 62);
+  tft.print("points");
 
   while(1){
     button1State = digitalRead(button1Pin);
@@ -204,7 +206,7 @@ void setup(void) {
 
     if(button1State == HIGH)
       {
-        if(mode < 1){
+        if(mode < 2){
           mode++;
         } else {
           mode = 0;
@@ -218,6 +220,9 @@ void setup(void) {
     }
     if(mode == 1){
       tft.drawRect(28, 49, 72, 11, featureColour2);
+    }
+    if(mode == 2){
+      tft.drawRect(28, 60, 72, 11, featureColour2);
     }
 
   if(button2State == HIGH)
@@ -235,10 +240,12 @@ void setup(void) {
   tftStaticGraphics();
   tftDynamicText();
 
-  if(mode==0){
+  if(mode == 0){
     tftPlotWaveform();
-  } else {
-    
+  } else if(mode == 1){
+    tftPlotPolar();
+  } else if(mode == 2){
+    tftPlotPoints();
   }
   
 }
@@ -288,11 +295,12 @@ void loop() {
     polarMath();
     tftDynamicText();
 
-    if(mode == 0)
-    {
+    if(mode == 0){
       tftPlotWaveform();
-    } else {
+    } else if(mode == 1){
       tftPlotPolar();
+    } else if(mode == 2){
+      tftPlotPoints();
     }
 
     if (clip) {
@@ -415,15 +423,43 @@ void tftStaticGraphics() {
   tft.setTextColor(textColour);
   if(mode == 0){
     tft.print(" [waveform]");
-  } else{
+  } else if(mode == 0){
     tft.print(" [polar]");
+  } else {
+    tft.print(" [points]");
   }
 
   tft.drawFastHLine(0, 18, 128, lightLineColour);
   tft.drawFastHLine(0, 141, 128, lightLineColour);
 
-  if(mode == 0)
-  {
+  if(mode == 0){
+    tft.drawFastHLine(0, 100, 128, lightLineColour);
+
+    tft.drawFastVLine(32, 100, 3, lightLineColour);
+    tft.setCursor(20, 105);
+    tft.print("-180");
+
+    tft.drawFastVLine(64, 100, 3, lightLineColour);
+    tft.setCursor(62, 105);
+    tft.print("0");
+
+    tft.drawFastVLine(96, 100, 3, lightLineColour);
+    tft.setCursor(84, 105);
+    tft.print("+180");
+  } else if(mode == 1){
+    tft.drawFastVLine(64, 29, 104, lightLineColour);
+    tft.drawFastHLine(13, 80, 104, lightLineColour);
+    tft.drawCircle(x1, y1, radiusOutline * 0.5, lightLineColour);
+    tft.drawCircle(x1, y1, radiusOutline, lightLineColour);
+  
+    tft.setTextColor(textColourLight);
+    tft.setCursor(120, 66);
+    tft.print("+");
+    tft.setCursor(120, 77);
+    tft.print("0");
+    tft.setCursor(120, 87);
+    tft.print("-");
+  } else if(mode == 2){
     tft.drawFastHLine(0, 100, 128, lightLineColour);
 
     tft.drawFastVLine(32, 100, 3, lightLineColour);
@@ -438,19 +474,11 @@ void tftStaticGraphics() {
     tft.setCursor(84, 105);
     tft.print("+180");
 
-  } else {
-    tft.drawFastVLine(64, 29, 104, lightLineColour);
-    tft.drawFastHLine(13, 80, 104, lightLineColour);
-    tft.drawCircle(x1, y1, radiusOutline * 0.5, lightLineColour);
-    tft.drawCircle(x1, y1, radiusOutline, lightLineColour);
-  
-    tft.setTextColor(textColourLight);
-    tft.setCursor(120, 66);
-    tft.print("+");
-    tft.setCursor(120, 77);
-    tft.print("0");
-    tft.setCursor(120, 87);
-    tft.print("-");
+    tft.setCursor(29, 119);
+    tft.print("hold 'OK' to");
+    tft.setCursor(13, 128);
+    tft.print("accumulate points");
+    tft.drawRect(11, 117, 106, 21, lightLineColour);
   }
 }
 
@@ -594,3 +622,34 @@ void tftPlotPolar(void)
   tft.drawLine(x1, y1, x2, y2, featureColour2);
 }
 
+void tftPlotPoints(void)
+{
+  button2State = digitalRead(button2Pin);
+    
+  for (int k=0; k <= 49; k++){ // only show the first 49 samples
+    if (cycletime[k] <= 1.0){
+      if(button2State == LOW){ tft.drawPixel(x3[k], y3[k], bgColour);}
+      
+      x3[k] = cycletime[k] * 128;
+      y3[k] = sample[k] / 800 + 59;
+      
+      tft.drawPixel(x3[k], y3[k], darkLineColour);
+    }
+  }
+
+  tft.drawFastVLine(scaledAngle, 20, 79, bgColour);
+  tft.drawFastVLine(scaledAngle + 64, 20, 79, bgColour);
+  tft.drawFastVLine(scaledAngle + 128, 20, 79, bgColour);
+
+  scaledAngle = angle * 0.1778; // =  angle * (screen_width / 360degrees / 2 cycles on screen)
+  if (scaledAngle >= 10){
+    tft.drawFastVLine(scaledAngle, 20, 79, featureColour2);
+  }
+  if (scaledAngle > -64){
+  tft.drawFastVLine(scaledAngle + 64, 20, 79, featureColour2);
+  }
+  if (scaledAngle < 10){
+    tft.drawFastVLine(scaledAngle + 128, 20, 79, featureColour2);
+  }
+  tft.drawFastHLine(0, 59, 128, lightLineColour);
+}
