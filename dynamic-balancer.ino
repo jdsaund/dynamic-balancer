@@ -297,7 +297,6 @@ void loop() {
 
     if (clip) {
       sysStatus = "CLIP!!";
-      clip = false;
     } else {
       sysStatus = "    ok";
     }
@@ -496,6 +495,8 @@ void ProcessSample(int16_t sample)
   if (sample >= 32768 || sample <= -32768)
   {
     clip = true;
+  } else {
+    clip = false;
   }
 }
 
