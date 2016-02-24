@@ -12,6 +12,8 @@
 
 MPU6050 accelgyro;
 
+#define NUMSAMPLES    25
+
 #define TFT_CS     10
 #define TFT_RST    9
 #define TFT_DC     8
@@ -63,19 +65,19 @@ float sine;
 float cosine;
 int N;
 volatile uint16_t loopTime;
-int16_t sample[51]; 
-uint32_t time[51]; 
-float cycletime[51];
+int16_t sample[NUMSAMPLES + 1]; 
+uint32_t time[NUMSAMPLES + 1]; 
+float cycletime[NUMSAMPLES + 1];
 volatile unsigned long start, end;
 float real, imag, realRaw, imagRaw;
 volatile int ticker, n, i = 0;
 
 int scaledAngle;
 
-int x3[51];
-int y3[51];
-int x4[51];
-int y4[51];
+int x3[NUMSAMPLES + 1];
+int y3[NUMSAMPLES + 1];
+int x4[NUMSAMPLES + 1];
+int y4[NUMSAMPLES + 1];
 
 String sysStatus;
 bool clip = false;
@@ -101,6 +103,9 @@ void setup(void) {
   tft.fillScreen(bgColour);
   tft.setRotation(0);
 
+  // splash screen
+  splashScreen();
+
     // join I2C bus (I2Cdev library doesn't do this automatically)
   #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
       Wire.begin();
@@ -124,115 +129,7 @@ void setup(void) {
   digitalWrite(13, LOW);
 
   // setup menu
-  tft.setTextColor(textColour);
-  tft.setCursor(33, 1);
-  tft.setTextSize(2);
-  tft.print("Setup");
-  tft.setCursor(7, 17);
-
-  // select range
-  tft.setTextSize(0);
-  tft.setTextColor(textColourLight);
-  tft.setCursor(6, 17);
-  tft.print("Accelerometer range:");
-
-  tft.setCursor(30, 40);
-  tft.print("+/-  2g");
-  tft.setCursor(30, 51);
-  tft.print("+/-  4g");
-  tft.setCursor(30, 62);
-  tft.print("+/-  8g");
-  tft.setCursor(30, 73);
-  tft.print("+/- 16g");
-
-  while(1){
-    button1State = digitalRead(button1Pin);
-    button2State = digitalRead(button2Pin);
-
-    if(button1State == HIGH)
-      {
-        if(range < 3){
-          range++;
-        } else {
-          range = 0;
-        }
-        tft.drawRect(28, 38, 72, 11, bgColour);
-        tft.drawRect(28, 49, 72, 11, bgColour);
-        tft.drawRect(28, 60, 72, 11, bgColour);
-        tft.drawRect(28, 71, 72, 11, bgColour);
-      }
-
-    if(range == 0){
-      tft.drawRect(28, 38, 72, 11, featureColour2);
-    }
-    if(range == 1){
-      tft.drawRect(28, 49, 72, 11, featureColour2);
-    }
-    if(range == 2){
-      tft.drawRect(28, 60, 72, 11, featureColour2);
-    }
-    if(range == 3){
-      tft.drawRect(28, 71, 72, 11, featureColour2);
-    }
-
-  if(button2State == HIGH)
-    {
-      break;
-    }
-
-    delay(200);
-  }
-
-  tft.fillRect(1, 17, 128, 130, bgColour);
-
-  // select plot mode
-  tft.setTextColor(textColourLight, bgColour);
-  tft.setCursor(35, 17);
-  tft.print("Test mode:");
-
-  tft.setCursor(30, 40);
-  tft.print("interactive");
-  tft.setCursor(30, 51);
-  tft.print("polar");
-  tft.setCursor(30, 62);
-  tft.print("waveform");
-
-  while(1){
-    button1State = digitalRead(button1Pin);
-    button2State = digitalRead(button2Pin);
-
-    if(button1State == HIGH)
-      {
-        if(mode < 2){
-          mode++;
-        } else {
-          mode = 0;
-        }
-        tft.drawRect(28, 38, 72, 11, bgColour);
-        tft.drawRect(28, 49, 72, 11, bgColour);
-        tft.drawRect(28, 60, 72, 11, bgColour);
-      }
-
-    if(mode == 0){
-      tft.drawRect(28, 38, 72, 11, featureColour2);
-    }
-    if(mode == 1){
-      tft.drawRect(28, 49, 72, 11, featureColour2);
-    }
-    if(mode == 2){
-      tft.drawRect(28, 60, 72, 11, featureColour2);
-    }
-
-
-  if(button2State == HIGH)
-    {
-      break;
-    }
-
-    delay(200);
-  }
-
-  tft.fillScreen(bgColour);
+  setupMenu();
 
   accelgyro.setFullScaleAccelRange(range);
 
@@ -254,7 +151,7 @@ void loop() {
     sample[i] = accelgyro.getAccelerationX();
     time[i] = micros() - start;
 
-    if (i <= 50){
+    if (i < NUMSAMPLES){
       i++;
     }
     
@@ -265,7 +162,7 @@ void loop() {
     sample[i] = accelgyro.getAccelerationX();
     time[i] = micros() - start;
     
-    if (i <= 50){
+    if (i < NUMSAMPLES){
       i++;
     }
     
@@ -274,7 +171,7 @@ void loop() {
     
   if (ticker == 3){// || !loop2Complete) { // if its this one's turn, or if this one is incomplete
     loopTime = end - start;
-      for (int k=0; k <= 49; k++){ // only show the first 49 samples
+      for (int k=0; k < NUMSAMPLES; k++){ // only show the first 49 samples
         cycletime[k] = (float)time[k] / (float)loopTime - 0.049;
         if (cycletime[k] < 1.0){
           ProcessSample(sample[k]);
@@ -548,7 +445,7 @@ float getImag(void)
 
 void tftPlotWaveform(void)
 {
-  for (int k=0; k <= 49; k++){ // only show the first 49 samples
+  for (int k=0; k < NUMSAMPLES; k++){ // only show the first 49 samples
     if (cycletime[k] <= 1.0 && cycletime[k+1] > 0){
       tft.drawLine(x3[k],y3[k],x4[k],y4[k], bgColour);
       x3[k] = cycletime[k] * 128;
@@ -602,38 +499,6 @@ void tftPlotPolar(void)
   tft.drawCircle(x1, y1, polarRadius, lightLineColour);
 
   tft.drawLine(x1, y1, x2, y2, featureColour2);
-}
-
-void tftPlotPoints(void)
-{
-//  button2State = digitalRead(button2Pin);
-//    
-//  for (int k=0; k <= 49; k++){ // only show the first 49 samples
-//    if (cycletime[k] <= 1.0){
-//      if(button2State == LOW){ tft.drawPixel(x3[k], y3[k], bgColour);}
-//      
-//      x3[k] = cycletime[k] * 128;
-//      y3[k] = sample[k] / 800 + 59;
-//      
-//      tft.drawPixel(x3[k], y3[k], darkLineColour);
-//    }
-//  }
-//
-//  tft.drawFastVLine(scaledAngle, 20, 79, bgColour);
-//  tft.drawFastVLine(scaledAngle + 64, 20, 79, bgColour);
-//  tft.drawFastVLine(scaledAngle + 128, 20, 79, bgColour);
-//
-//  scaledAngle = angle * 0.1778; // =  angle * (screen_width / 360degrees / 2 cycles on screen)
-//  if (scaledAngle >= 10){
-//    tft.drawFastVLine(scaledAngle, 20, 79, featureColour2);
-//  }
-//  if (scaledAngle > -64){
-//  tft.drawFastVLine(scaledAngle + 64, 20, 79, featureColour2);
-//  }
-//  if (scaledAngle < 10){
-//    tft.drawFastVLine(scaledAngle + 128, 20, 79, featureColour2);
-//  }
-//  tft.drawFastHLine(0, 59, 128, lightLineColour);
 }
 
 void tftPlotPolarInteractive(void)
@@ -776,5 +641,141 @@ void showResults(float vector1[2], float vector2[2], float unbalanceMagnitude)
       tft.setTextSize(0);
     }
   }
+}
+
+void setupMenu(void){
+  tft.fillScreen(bgColour);
+  tft.setTextColor(textColour);
+  tft.setCursor(33, 1);
+  tft.setTextSize(2);
+  tft.print("Setup");
+  tft.setCursor(7, 17);
+
+  // select range
+  tft.setTextSize(0);
+  tft.setTextColor(textColour);
+  tft.setCursor(6, 17);
+  tft.print("Accelerometer range:");
+
+  tft.setTextColor(textColourLight);
+  tft.setCursor(30, 40);
+  tft.print("+/-  2g");
+  tft.setCursor(30, 51);
+  tft.print("+/-  4g");
+  tft.setCursor(30, 62);
+  tft.print("+/-  8g");
+  tft.setCursor(30, 73);
+  tft.print("+/- 16g");
+
+  while(1){
+    button1State = digitalRead(button1Pin);
+    button2State = digitalRead(button2Pin);
+
+    if(button1State == HIGH)
+      {
+        if(range < 3){
+          range++;
+        } else {
+          range = 0;
+        }
+        tft.drawRect(28, 38, 72, 11, bgColour);
+        tft.drawRect(28, 49, 72, 11, bgColour);
+        tft.drawRect(28, 60, 72, 11, bgColour);
+        tft.drawRect(28, 71, 72, 11, bgColour);
+      }
+
+    if(range == 0){
+      tft.drawRect(28, 38, 72, 11, featureColour2);
+    }
+    if(range == 1){
+      tft.drawRect(28, 49, 72, 11, featureColour2);
+    }
+    if(range == 2){
+      tft.drawRect(28, 60, 72, 11, featureColour2);
+    }
+    if(range == 3){
+      tft.drawRect(28, 71, 72, 11, featureColour2);
+    }
+
+  if(button2State == HIGH)
+    {
+      break;
+    }
+
+    delay(200);
+  }
+
+  tft.fillRect(1, 17, 128, 130, bgColour);
+
+  // select plot mode
+  tft.setTextColor(textColour);
+  tft.setCursor(35, 17);
+  tft.print("Test mode:");
+
+ tft.setTextColor(textColourLight);
+  tft.setCursor(30, 40);
+  tft.print("interactive");
+  tft.setCursor(30, 51);
+  tft.print("polar");
+  tft.setCursor(30, 62);
+  tft.print("waveform");
+
+  while(1){
+    button1State = digitalRead(button1Pin);
+    button2State = digitalRead(button2Pin);
+
+    if(button1State == HIGH)
+      {
+        if(mode < 2){
+          mode++;
+        } else {
+          mode = 0;
+        }
+        tft.drawRect(28, 38, 72, 11, bgColour);
+        tft.drawRect(28, 49, 72, 11, bgColour);
+        tft.drawRect(28, 60, 72, 11, bgColour);
+      }
+
+    if(mode == 0){
+      tft.drawRect(28, 38, 72, 11, featureColour2);
+    }
+    if(mode == 1){
+      tft.drawRect(28, 49, 72, 11, featureColour2);
+    }
+    if(mode == 2){
+      tft.drawRect(28, 60, 72, 11, featureColour2);
+    }
+
+
+  if(button2State == HIGH)
+    {
+      break;
+    }
+
+    delay(200);
+  }
+
+  tft.fillScreen(bgColour);
+}
+
+void splashScreen(void)
+{
+  tft.fillScreen(bgColour);
+  tft.setTextColor(textColour);
+  tft.setTextSize(0);
+  
+  tft.setCursor(36, 29);
+  tft.print("Very Small");
+  delay(400);
+  tft.setCursor(30, 40);
+  tft.print("Single Plane");
+  delay(400);
+  tft.setCursor(42, 51);
+  tft.print("Balancer");
+  
+  delay(1000);
+  tft.setCursor(1, 152);
+  tft.print("v.01a");
+  delay(2000);
 }
 
