@@ -123,12 +123,18 @@ void setup(void) {
   attachInterrupt(3, ISRspeed, RISING);//number 3 (on digital pin 1) 
   digitalWrite(13, LOW);
 
+  // setup menu
+  tft.setTextColor(textColour);
+  tft.setCursor(33, 1);
+  tft.setTextSize(2);
+  tft.print("Setup");
+  tft.setCursor(7, 17);
+
   // select range
-  tft.setTextColor(textColourLight, bgColour);
-  tft.setCursor(1, 9);
-  tft.print("accelerometer");
-  tft.setCursor(1, 17);
-  tft.print("range: ");
+  tft.setTextSize(0);
+  tft.setTextColor(textColourLight);
+  tft.setCursor(6, 17);
+  tft.print("Accelerometer range:");
 
   tft.setCursor(30, 40);
   tft.print("+/-  2g");
@@ -177,14 +183,12 @@ void setup(void) {
     delay(200);
   }
 
-  tft.fillScreen(bgColour);
+  tft.fillRect(1, 17, 128, 130, bgColour);
 
   // select plot mode
   tft.setTextColor(textColourLight, bgColour);
-  tft.setCursor(1, 9);
-  tft.print("plot");
-  tft.setCursor(1, 17);
-  tft.print("mode: ");
+  tft.setCursor(35, 17);
+  tft.print("Test mode:");
 
   tft.setCursor(30, 40);
   tft.print("interactive");
@@ -687,7 +691,7 @@ void showResults(float vector1[2], float vector2[2], float unbalanceMagnitude)
 {
   tft.fillScreen(bgColour);
 
-  tft.setTextColor(textColour, bgColour);
+  tft.setTextColor(textColour);
   tft.setCursor(23, 1);
   tft.setTextSize(2);
   tft.print("Results");
@@ -770,8 +774,6 @@ void showResults(float vector1[2], float vector2[2], float unbalanceMagnitude)
       tft.setCursor(1, 72);
       tft.print(degrees(-vector4angle)); tft.setTextSize(0); tft.print("o");
       tft.setTextSize(0);
-      
-      
     }
   }
 }
