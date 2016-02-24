@@ -93,8 +93,6 @@ const float rangeScale[4] = {0.00059816, 0.00119633, 0.00239265, 0.00478530}; //
 const float polarScale[4] = {19.6, 39.2, 78.4, 156.8};
 
 void setup(void) {
-  Serial.begin(115200);
-
   pinMode(button1Pin, INPUT);
   pinMode(button2Pin, INPUT);
   
@@ -112,11 +110,6 @@ void setup(void) {
   #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
       Fastwire::setup(400, true);
   #endif
-  
-  pinMode(13, OUTPUT);//LEDPIN
-  delay(10);
-  digitalWrite(13, HIGH);
-  delay(10);
 
   accelgyro.initialize();
   accelgyro.setRate(0x00); // 1khz/ (1+0) = 1khz
@@ -126,9 +119,8 @@ void setup(void) {
 
   // setup tacho
   attachInterrupt(3, ISRspeed, RISING);//number 3 (on digital pin 1) 
-  digitalWrite(13, LOW);
 
-  // setup menu
+  // setup menu - sets the range and mode
   setupMenu();
 
   accelgyro.setFullScaleAccelRange(range);
