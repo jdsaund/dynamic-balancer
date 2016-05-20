@@ -86,7 +86,7 @@ int y3[NUMSAMPLES + 1]          = {0};
 int x4[NUMSAMPLES + 1]          = {0};
 int y4[NUMSAMPLES + 1]          = {0};
 
-String sysStatus;
+String sysStatus                = "    ok";
 bool clip                       = false;
 
 int button1State                = 0;
@@ -153,36 +153,39 @@ void loop(void){
     if (i < NUMSAMPLES){
       i++;
     }
-    
+
     delayMicroseconds(100);
   }
 
   if(ticker == 2){
     sample[i] = accelgyro.getAccelerationX();
     time[i] = micros() - start;
-    
+
     if (i < NUMSAMPLES){
       i++;
     }
-    
+
     delayMicroseconds(100);
   }
-    
+  
   if (ticker == 3){// || !loop2Complete) { // if its this one's turn, or if this one is incomplete
+  if(end > start){
     loopTime = end - start;
-      for (int k=0; k < NUMSAMPLES; k++){ // only show the first 49 samples
-        cycletime[k] = (float)time[k] / (float)loopTime - 0.049;
-        if (cycletime[k] < 1.0){
-          ProcessSample(sample[k]);
-          N++;
-        }
-      }
-      
-    i=0;
-    realRaw = getReal() * rangeScale[range];
-    imagRaw = getImag() * rangeScale[range];
-    InitGoertzel();
-    N=0;
+  }
+
+  for (int k=0; k < NUMSAMPLES; k++){ // only show the first 49 samples
+    cycletime[k] = (float)time[k] / (float)loopTime - 0.049;
+    if (cycletime[k] < 1.0){
+      ProcessSample(sample[k]);
+      N++;
+    }
+  }
+    
+  i=0;
+  realRaw = getReal() * rangeScale[range];
+  imagRaw = getImag() * rangeScale[range];
+  InitGoertzel();
+  N=0;
   }
   
   if(ticker == 4){
