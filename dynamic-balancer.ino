@@ -10,13 +10,11 @@
     #include <Wire.h>
 #endif
 
-MPU6050 accelgyro;
+#define NUMSAMPLES      25
 
-#define NUMSAMPLES    25
-
-#define TFT_CS     10
-#define TFT_RST    9
-#define TFT_DC     8
+#define TFT_CS          10
+#define TFT_RST         9
+#define TFT_DC          8
 
 #define Black           0x0000      /*   0,   0,   0 */
 #define Navy            0x000F      /*   0,   0, 128 */
@@ -47,52 +45,61 @@ MPU6050 accelgyro;
 #define featureColour2  Magenta
 #define featureColour3  DarkGreen
 
+#define PLOT_RADIUS     52
+#define PLOT_CENTER_X   64
+#define PLOT_CENTER_Y   80
+
+MPU6050 accelgyro;
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
 
-const float p = 3.1415926;
-int rpm;
-const int polarRadius = 52;
-const int x1 = 64;
-const int y1 = 80;
-float x2 = x1;
-float y2 = y1;
-float angle = 0;
-float magnitude = 0;
-float coeff;
-float Q1;
-float Q2;
-float sine;
-float cosine;
-int N;
-volatile uint16_t loopTime;
-int16_t sample[NUMSAMPLES + 1]; 
-uint32_t time[NUMSAMPLES + 1]; 
-float cycletime[NUMSAMPLES + 1];
-volatile unsigned long start, end;
-float real, imag, realRaw, imagRaw;
-volatile int ticker, n, i = 0;
+int rpm                         = 0;
+float x2                        = PLOT_CENTER_X;
+float y2                        = PLOT_CENTER_Y;
+float angle                     = 0;
+float magnitude                 = 0;
+float coeff                     = 0;
+float Q1                        = 0;
+float Q2                        = 0;
+float sine                      = 0;
+float cosine                    = 0;
+int N                           = 0;
 
-int scaledAngle;
+int16_t sample[NUMSAMPLES + 1]  = {0}; 
+uint32_t time[NUMSAMPLES + 1]   = {0}; 
+float cycletime[NUMSAMPLES + 1] = {0};
 
-int x3[NUMSAMPLES + 1];
-int y3[NUMSAMPLES + 1];
-int x4[NUMSAMPLES + 1];
-int y4[NUMSAMPLES + 1];
+float real                      = 0;
+float imag                      = 0;
+float realRaw                   = 0; 
+float imagRaw                   = 0;
+volatile unsigned long start    = 0; 
+volatile unsigned long end      = 0;
+volatile uint16_t loopTime      = 0;
+volatile int ticker             = 0;
+volatile int n                  = 0; 
+volatile int i                  = 0;
+
+int scaledAngle                 = 0;
+
+int x3[NUMSAMPLES + 1]          = {0};
+int y3[NUMSAMPLES + 1]          = {0};
+int x4[NUMSAMPLES + 1]          = {0};
+int y4[NUMSAMPLES + 1]          = {0};
 
 String sysStatus;
-bool clip = false;
+bool clip                       = false;
 
-int button1State;
-int button2State;
-int button1Pin = 4;
-int button2Pin = 5;
+int button1State                = 0;
+int button2State                = 0;
+int button1Pin                  = 4;
+int button2Pin                  = 5;
 
-static int range = 0; // 0 = +/-2g, 1 = +/-4g, 2 = +/-8g, 3 = +/-16g
-static int mode = 0;  // 0 = interactive, 1 = polar, 2 = waveform
-const float rangeScale[4] = {0.00059816, 0.00119633, 0.00239265, 0.00478530}; // 1 / (32767 / g range / 9.8)
-const float polarScale[4] = {19.6, 39.2, 78.4, 156.8};
+static int range                = 0; // 0 = +/-2g, 1 = +/-4g, 2 = +/-8g, 3 = +/-16g
+static int mode                 = 0;  // 0 = interactive, 1 = polar, 2 = waveform
+const float rangeScale[4]       = {0.00059816, 0.00119633, 0.00239265, 0.00478530}; // 1 / (32767 / g range / 9.8)
+const float polarScale[4]       = {19.6, 39.2, 78.4, 156.8};
 
-void setup(void) {
+void setup(void){
   pinMode(button1Pin, INPUT);
   pinMode(button2Pin, INPUT);
   
@@ -138,7 +145,7 @@ void setup(void) {
   
 }
 
-void loop() {
+void loop(void){
   if(ticker == 1){
     sample[i] = accelgyro.getAccelerationX();
     time[i] = micros() - start;
@@ -204,15 +211,15 @@ void loop() {
   }
 }
 
-void polarMath(){
+void polarMath(void){
     // smooth the real and imaginary parts
     real = (realRaw*(1-0.9))+(real*0.9);
     imag = (imagRaw*(1-0.9))+(imag*0.9);
     magnitude = sqrt(real*real + imag*imag);
-    angle = degrees(atan2(real,imag)) + 80; // +80 dgerees aligns the goertzel estimate with the actual measurements
+    angle = degrees(atan2(real,imag)) + 80; // +80 dgerees aligns the goertzel estimate with the actual measurements // this may not be correct
 }
 
-void tftDynamicText(){
+void tftDynamicText(void){
   tft.setTextColor(textColour, bgColour);
   tft.setCursor(25, 1);
   if (magnitude < 100 && magnitude >= 10){
@@ -270,7 +277,7 @@ void tftDynamicText(){
   tft.print(sysStatus);
 }
 
-void tftStaticGraphics() {
+void tftStaticGraphics(void){
   tft.setTextWrap(false);
   tft.setTextColor(textColourLight);
   tft.setTextSize(0);
@@ -327,8 +334,8 @@ void tftStaticGraphics() {
   } else if(mode == 1){
     tft.drawFastVLine(64, 29, 104, lightLineColour);
     tft.drawFastHLine(13, 80, 104, lightLineColour);
-    tft.drawCircle(x1, y1, polarRadius * 0.5, lightLineColour);
-    tft.drawCircle(x1, y1, polarRadius, lightLineColour);
+    tft.drawCircle(PLOT_CENTER_X, PLOT_CENTER_Y, PLOT_RADIUS * 0.5, lightLineColour);
+    tft.drawCircle(PLOT_CENTER_X, PLOT_CENTER_Y, PLOT_RADIUS, lightLineColour);
   
     tft.setTextColor(textColourLight);
     tft.setCursor(120, 66);
@@ -354,8 +361,7 @@ void tftStaticGraphics() {
   }
 }
 
-void ISRspeed()
-{
+void ISRspeed(void){
   ticker++;
   if(ticker == 1){
     start = micros();
@@ -365,14 +371,12 @@ void ISRspeed()
   }
 }
 
-void ResetGoertzel(void)
-{
+void ResetGoertzel(void){
   Q2 = 0;
   Q1 = 0;
 }
 
-void InitGoertzel()
-{
+void InitGoertzel(void){
   float  floatN;
   float  omega;
 
@@ -385,8 +389,7 @@ void InitGoertzel()
   ResetGoertzel();
 }
 
-void ProcessSample(int16_t sample)
-{
+void ProcessSample(int16_t sample){
   float Q0;
   Q0 = coeff * Q1 - Q2 + (float) sample;
   Q2 = Q1;
@@ -400,43 +403,37 @@ void ProcessSample(int16_t sample)
   }
 }
 
-void GetRealImag(float *realPart, float *imagPart)
-{
+void GetRealImag(float *realPart, float *imagPart){
   *realPart = (Q1 - Q2 * cosine);
   *imagPart = (Q2 * sine);
 }
 
-float GetMagnitudeSquared(void)
-{
+float GetMagnitudeSquared(void){
   float result;
 
   result = Q1 * Q1 + Q2 * Q2 - Q1 * Q2 * coeff;
   return result;
 }
 
-float GetPhase(void)
-{
+float GetPhase(void){
   float result;
   result = atan2(Q2 * sine, Q1 - Q2 * cosine); // atan2(imag, real);
   return result;
 }
 
-float getReal(void)
-{
+float getReal(void){
   float result;
   result = Q1 - Q2 * cosine;
   return result;
 }
 
-float getImag(void)
-{
+float getImag(void){
   float result;
   result = Q2 * sine;
   return result;
 }
 
-void tftPlotWaveform(void)
-{
+void tftPlotWaveform(void){
   for (int k=0; k < NUMSAMPLES; k++){ // only show the first 49 samples
     if (cycletime[k] <= 1.0 && cycletime[k+1] > 0){
       tft.drawLine(x3[k],y3[k],x4[k],y4[k], bgColour);
@@ -466,13 +463,11 @@ void tftPlotWaveform(void)
   tft.drawFastHLine(0, 59, 128, lightLineColour);
 }
 
-void tftPlotClear(void)
-{
+void tftPlotClear(void){
   tft.fillRect(0, 18, 128, 100, bgColour);
 }
 
-void tftPlotPolar(void)
-{
+void tftPlotPolar(void){
   float magMultiplier;
   if(polarScale[range] < magnitude){
     magMultiplier = 1;
@@ -480,21 +475,20 @@ void tftPlotPolar(void)
     magMultiplier = magnitude / polarScale[range];
   }
   
-  tft.drawLine(x1, y1, x2, y2, bgColour);
+  tft.drawLine(PLOT_CENTER_X, PLOT_CENTER_Y, x2, y2, bgColour);
   
-  x2 = x1 + magMultiplier*polarRadius * cos(radians(-angle));
-  y2 = y1 + magMultiplier*polarRadius * sin(radians(-angle));
+  x2 = PLOT_CENTER_X + magMultiplier*PLOT_RADIUS * cos(radians(-angle));
+  y2 = PLOT_CENTER_Y + magMultiplier*PLOT_RADIUS * sin(radians(-angle));
 
   tft.drawFastVLine(64, 29, 104, lightLineColour);
   tft.drawFastHLine(13, 80, 104, lightLineColour);
-  tft.drawCircle(x1, y1, polarRadius * 0.5, lightLineColour);
-  tft.drawCircle(x1, y1, polarRadius, lightLineColour);
+  tft.drawCircle(PLOT_CENTER_X, PLOT_CENTER_Y, PLOT_RADIUS * 0.5, lightLineColour);
+  tft.drawCircle(PLOT_CENTER_X, PLOT_CENTER_Y, PLOT_RADIUS, lightLineColour);
 
-  tft.drawLine(x1, y1, x2, y2, featureColour2);
+  tft.drawLine(PLOT_CENTER_X, PLOT_CENTER_Y, x2, y2, featureColour2);
 }
 
-void tftPlotPolarInteractive(void)
-{
+void tftPlotPolarInteractive(void){
   static float vector1[2]; // 0 = x2, 1 = y2
   static float vector2[2]; // 0 = x2, 1 = y2
   float vector1magnitude;
@@ -508,17 +502,17 @@ void tftPlotPolarInteractive(void)
     magMultiplier = magnitude / polarScale[range];
   }
   
-  tft.drawLine(x1, y1, x2, y2, bgColour);
+  tft.drawLine(PLOT_CENTER_X, PLOT_CENTER_Y, x2, y2, bgColour);
   
-  x2 = x1 + magMultiplier*polarRadius * cos(radians(-angle));
-  y2 = y1 + magMultiplier*polarRadius * sin(radians(-angle));
+  x2 = PLOT_CENTER_X + magMultiplier*PLOT_RADIUS * cos(radians(-angle));
+  y2 = PLOT_CENTER_Y + magMultiplier*PLOT_RADIUS * sin(radians(-angle));
 
   tft.drawFastVLine(64, 29, 104, lightLineColour);
   tft.drawFastHLine(13, 80, 104, lightLineColour);
-  tft.drawCircle(x1, y1, polarRadius * 0.5, lightLineColour);
-  tft.drawCircle(x1, y1, polarRadius, lightLineColour);
+  tft.drawCircle(PLOT_CENTER_X, PLOT_CENTER_Y, PLOT_RADIUS * 0.5, lightLineColour);
+  tft.drawCircle(PLOT_CENTER_X, PLOT_CENTER_Y, PLOT_RADIUS, lightLineColour);
 
-  tft.drawLine(x1, y1, x2, y2, featureColour3);
+  tft.drawLine(PLOT_CENTER_X, PLOT_CENTER_Y, x2, y2, featureColour3);
 
   button2State = digitalRead(button2Pin);
 
@@ -536,7 +530,7 @@ void tftPlotPolarInteractive(void)
   }
 
   if (storeVector1 == true){
-    tft.drawLine(x1, y1, vector1[0],  vector1[1], lightLineColour);
+    tft.drawLine(PLOT_CENTER_X, PLOT_CENTER_Y, vector1[0],  vector1[1], lightLineColour);
   }
 
   if (storeVector2 == true){
@@ -544,8 +538,7 @@ void tftPlotPolarInteractive(void)
   }
 }
 
-void showResults(float vector1[2], float vector2[2], float unbalanceMagnitude)
-{
+void showResults(float vector1[2], float vector2[2], float unbalanceMagnitude){
   tft.fillScreen(bgColour);
 
   tft.setTextColor(textColour);
@@ -562,13 +555,13 @@ void showResults(float vector1[2], float vector2[2], float unbalanceMagnitude)
   float vector4magnitude;
   float vector3magnitude;
   
-  vector3[0] = (vector2[0] - x1) - (vector1[0] - x1);
-  vector3[1] = (vector2[1] - y1) - (vector1[1] - y1);
+  vector3[0] = (vector2[0] - PLOT_CENTER_X) - (vector1[0] - PLOT_CENTER_X);
+  vector3[1] = (vector2[1] - PLOT_CENTER_Y) - (vector1[1] - PLOT_CENTER_Y);
 
   vector3magnitude = sqrt(vector3[0] * vector3[0] + vector3[1] * vector3[1]);
 
-  vector4angle = atan2(vector1[1] - y1, vector1[0] - x1) - atan2(vector3[1], vector3[0]);
-  vector4magnitude = sqrt((vector1[0] - x1) * (vector1[0] - x1) + (vector1[1] - y1) * (vector1[1] - y1));
+  vector4angle = atan2(vector1[1] - PLOT_CENTER_Y, vector1[0] - PLOT_CENTER_X) - atan2(vector3[1], vector3[0]);
+  vector4magnitude = sqrt((vector1[0] - PLOT_CENTER_X) * (vector1[0] - PLOT_CENTER_X) + (vector1[1] - PLOT_CENTER_Y) * (vector1[1] - PLOT_CENTER_Y));
   vector4[0] = vector4magnitude * cos(vector4angle);
   vector4[1] = vector4magnitude * sin(vector4angle);
 
@@ -586,8 +579,8 @@ void showResults(float vector1[2], float vector2[2], float unbalanceMagnitude)
     if(!page2){
       tft.drawFastVLine(64, 29, 104, lightLineColour);
       tft.drawFastHLine(13, 80, 104, lightLineColour);
-      tft.drawCircle(x1, y1, polarRadius * 0.5, lightLineColour);
-      tft.drawCircle(x1, y1, polarRadius, lightLineColour);
+      tft.drawCircle(PLOT_CENTER_X, PLOT_CENTER_Y, PLOT_RADIUS * 0.5, lightLineColour);
+      tft.drawCircle(PLOT_CENTER_X, PLOT_CENTER_Y, PLOT_RADIUS, lightLineColour);
       tft.setTextColor(textColourLight);
       tft.setCursor(120, 66);
       tft.print("+");
@@ -610,10 +603,10 @@ void showResults(float vector1[2], float vector2[2], float unbalanceMagnitude)
       tft.setCursor(73, 150);
       tft.print("final");
     
-      tft.drawLine( x1,  y1,  vector1[0],  vector1[1], lightLineColour);
-      tft.drawLine( x1,  y1,  vector2[0],  vector2[1], darkLineColour);
-      tft.drawLine( x1,  y1,  x1 + vector3[0],  y1 + vector3[1], featureColour1);
-      tft.drawLine( x1,  y1,  x1 + vector4[0],  y1 + vector4[1], featureColour2);
+      tft.drawLine( PLOT_CENTER_X,  PLOT_CENTER_Y,  vector1[0],  vector1[1], lightLineColour);
+      tft.drawLine( PLOT_CENTER_X,  PLOT_CENTER_Y,  vector2[0],  vector2[1], darkLineColour);
+      tft.drawLine( PLOT_CENTER_X,  PLOT_CENTER_Y,  PLOT_CENTER_X + vector3[0],  PLOT_CENTER_Y + vector3[1], featureColour1);
+      tft.drawLine( PLOT_CENTER_X,  PLOT_CENTER_Y,  PLOT_CENTER_X + vector4[0],  PLOT_CENTER_Y + vector4[1], featureColour2);
     } else {
       tft.setTextColor(textColourLight);
       tft.setCursor(1, 30);
@@ -750,8 +743,7 @@ void setupMenu(void){
   tft.fillScreen(bgColour);
 }
 
-void splashScreen(void)
-{
+void splashScreen(void){
   tft.fillScreen(bgColour);
   tft.setTextColor(textColour);
   tft.setTextSize(0);
