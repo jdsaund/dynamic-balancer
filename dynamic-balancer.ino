@@ -49,10 +49,30 @@
 #define PLOT_CENTER_X   64
 #define PLOT_CENTER_Y   80
 
+#define INTERACTIVE     0
+#define POLAR           1
+#define WAVEFORM        2
+
+#define RANGE_2G        0
+#define RANGE_4G        1
+#define RANGE_8G        2
+#define RANGE_16G       3
+
+// 1.0 / (32767 / g_range / 9.80)
+#define RANGE_SCALAR_2G         0.00059816
+#define RANGE_SCALAR_4G         0.00119633
+#define RANGE_SCALAR_8G         0.00239265
+#define RANGE_SCALAR_16G        0.00478530
+
+#define POLAR_SCALAR_2G         19.6
+#define POLAR_SCALAR_4G         39.2
+#define POLAR_SCALAR_8G         78.4
+#define POLAR_SCALAR_16G        156.8
+
 MPU6050 accelgyro;
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
 
-int rpm                         = 0;
+uint16_t rpm                    = 0;
 float x2                        = PLOT_CENTER_X;
 float y2                        = PLOT_CENTER_Y;
 float angle                     = 0;
@@ -73,8 +93,8 @@ float imag                      = 0;
 float realRaw                   = 0; 
 float imagRaw                   = 0;
 volatile unsigned long start    = 0; 
-volatile unsigned long end      = 0;
-volatile uint16_t loopTime      = 0;
+volatile unsigned long end      = 1;
+volatile uint16_t loopTime      = 1;
 volatile int ticker             = 0;
 volatile int n                  = 0; 
 volatile int i                  = 0;
@@ -94,10 +114,10 @@ int button2State                = 0;
 int button1Pin                  = 4;
 int button2Pin                  = 5;
 
-static int range                = 0; // 0 = +/-2g, 1 = +/-4g, 2 = +/-8g, 3 = +/-16g
-static int mode                 = 0;  // 0 = interactive, 1 = polar, 2 = waveform
-const float rangeScale[4]       = {0.00059816, 0.00119633, 0.00239265, 0.00478530}; // 1 / (32767 / g range / 9.8)
-const float polarScale[4]       = {19.6, 39.2, 78.4, 156.8};
+static int range                = RANGE_2G;
+static int mode                 = INTERACTIVE;
+const float rangeScale[4]       = {RANGE_SCALAR_2G, RANGE_SCALAR_4G, RANGE_SCALAR_8G, RANGE_SCALAR_16G}; 
+const float polarScale[4]       = {POLAR_SCALAR_2G, POLAR_SCALAR_4G, POLAR_SCALAR_8G, POLAR_SCALAR_16G};
 
 void setup(void){
   pinMode(button1Pin, INPUT);
@@ -111,7 +131,7 @@ void setup(void){
   // splash screen
   splashScreen();
 
-    // join I2C bus (I2Cdev library doesn't do this automatically)
+  // join I2C bus (I2Cdev library doesn't do this automatically)
   #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
       Wire.begin();
   #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
@@ -135,11 +155,11 @@ void setup(void){
   tftStaticGraphics();
   tftDynamicText();
 
-  if(mode == 0){
+  if(mode == INTERACTIVE){
     tftPlotPolarInteractive();
-  } else if(mode == 1){
+  } else if(mode == POLAR){
     tftPlotPolar();
-  } else if(mode == 2){
+  } else if(mode == WAVEFORM){
     tftPlotWaveform();
   }
   
@@ -168,36 +188,40 @@ void loop(void){
     delayMicroseconds(100);
   }
   
-  if (ticker == 3){// || !loop2Complete) { // if its this one's turn, or if this one is incomplete
-  if(end > start){
-    loopTime = end - start;
-  }
-
-  for (int k=0; k < NUMSAMPLES; k++){ // only show the first 49 samples
-    cycletime[k] = (float)time[k] / (float)loopTime - 0.049;
-    if (cycletime[k] < 1.0){
-      ProcessSample(sample[k]);
-      N++;
+  if (ticker == 3){
+    if(end > start){
+      loopTime = end - start;
     }
-  }
-    
-  i=0;
-  realRaw = getReal() * rangeScale[range];
-  imagRaw = getImag() * rangeScale[range];
-  InitGoertzel();
-  N=0;
+
+    for (int k=0; k < NUMSAMPLES; k++){ // only show the first 49 samples
+      cycletime[k] = (float)time[k] / (float)loopTime - 0.049;
+
+      if (cycletime[k] < 1){
+        ProcessSample(sample[k]);
+        N++;
+      }
+    }
+      
+    i=0;
+    realRaw = getReal() * rangeScale[range];
+    imagRaw = getImag() * rangeScale[range];
+    InitGoertzel();
+    N=0;
   }
   
   if(ticker == 4){
-    rpm = 120000000 / loopTime;
+    if(loopTime > 1200){
+        rpm = 120000000 / loopTime;
+    }
+    
     polarMath();
     tftDynamicText();
 
-    if(mode == 0){
+    if(mode == INTERACTIVE){
       tftPlotPolarInteractive();
-    } else if(mode == 1){
+    } else if(mode == POLAR){
       tftPlotPolar();
-    } else if(mode == 2){
+    } else if(mode == WAVEFORM){
       tftPlotWaveform();
     }
 
@@ -257,18 +281,18 @@ void tftDynamicText(void){
   tft.setCursor(95, 1);
   if (rpm < 10000 && rpm >= 1000){
     tft.print(" ");
-    tft.println((int)rpm);
+    tft.println(rpm);
   } else if (rpm < 1000 && rpm >= 100){
     tft.print("  ");
-    tft.println((int)rpm);
+    tft.println(rpm);
   } else  if (rpm < 100 && rpm >= 10){
     tft.print("   ");
-    tft.println((int)rpm);
+    tft.println(rpm);
   } else  if (rpm < 10 && rpm >= 0){
     tft.print("    ");
-    tft.println((int)rpm);
+    tft.println(rpm);
   } else {
-    tft.println((int)rpm);
+    tft.println(rpm);
   }
 
   tft.setCursor(89, 9);
@@ -307,13 +331,13 @@ void tftStaticGraphics(void){
   tft.setCursor(1, 151);
   tft.print("range: ");
   tft.setTextColor(textColour);
-  if(range == 0){
+  if(range == RANGE_2G){
     tft.print("[+/- 2g]");
-  } else if(range == 1){
+  } else if(range == RANGE_4G){
     tft.print("[+/- 4g]");
-  } else if(range == 2){
+  } else if(range == RANGE_8G){
     tft.print("[+/- 8g]");
-  } else if(range == 3){
+  } else if(range == RANGE_16G){
     tft.print("[+/- 16g]");
   }
 
@@ -322,19 +346,19 @@ void tftStaticGraphics(void){
   tft.setCursor(1, 143);
   tft.print("mode: ");
   tft.setTextColor(textColour);
-  if(mode == 0){
+  if(mode == INTERACTIVE){
     tft.print(" [interactive]");
-  } else if(mode == 1){
+  } else if(mode == POLAR){
     tft.print(" [polar]");
-  } else if(mode == 2){
+  } else if(mode == WAVEFORM){
     tft.print(" [waveform]");
   } 
 
   tft.drawFastHLine(0, 18, 128, lightLineColour);
   tft.drawFastHLine(0, 141, 128, lightLineColour);
 
-  if(mode == 0){
-  } else if(mode == 1){
+  if(mode == INTERACTIVE){
+  } else if(mode == POLAR){
     tft.drawFastVLine(64, 29, 104, lightLineColour);
     tft.drawFastHLine(13, 80, 104, lightLineColour);
     tft.drawCircle(PLOT_CENTER_X, PLOT_CENTER_Y, PLOT_RADIUS * 0.5, lightLineColour);
@@ -347,7 +371,7 @@ void tftStaticGraphics(void){
     tft.print("0");
     tft.setCursor(120, 87);
     tft.print("-");
-  } else if(mode == 2){
+  } else if(mode == WAVEFORM){
     tft.drawFastHLine(0, 100, 128, lightLineColour);
 
     tft.drawFastVLine(32, 100, 3, lightLineColour);
@@ -380,11 +404,13 @@ void ResetGoertzel(void){
 }
 
 void InitGoertzel(void){
-  float  floatN;
   float  omega;
 
-  floatN = (float) N;
-  omega = (2.0 * PI * 2) / floatN;
+  if(N < 1){
+      N = 1;
+  }
+
+  omega = (4.0 * PI) / N;
   sine = sin(omega);
   cosine = cos(omega);
   coeff = 2.0 * cosine;
@@ -438,13 +464,12 @@ float getImag(void){
 
 void tftPlotWaveform(void){
   for (int k=0; k < NUMSAMPLES; k++){ // only show the first 49 samples
-    if (cycletime[k] <= 1.0 && cycletime[k+1] > 0){
+    if (cycletime[k] <= 1 && cycletime[k+1] > 0){
       tft.drawLine(x3[k],y3[k],x4[k],y4[k], bgColour);
       x3[k] = cycletime[k] * 128;
       y3[k] = sample[k] / 800 + 59;
       x4[k] = cycletime[k+1] * 128;
       y4[k] = sample[k+1] / 800 + 59;
-      
       tft.drawLine(x3[k],y3[k],x4[k],y4[k], featureColour1);
     }
   }
@@ -661,36 +686,39 @@ void setupMenu(void){
 
     if(button1State == HIGH)
       {
-        if(range < 3){
+        if(range < RANGE_16G){
           range++;
         } else {
-          range = 0;
+          range = RANGE_2G;
         }
         tft.drawRect(28, 38, 72, 11, bgColour);
         tft.drawRect(28, 49, 72, 11, bgColour);
         tft.drawRect(28, 60, 72, 11, bgColour);
         tft.drawRect(28, 71, 72, 11, bgColour);
+
+        waitforRelease(button1Pin);
       }
 
-    if(range == 0){
+    if(range == RANGE_2G){
       tft.drawRect(28, 38, 72, 11, featureColour2);
     }
-    if(range == 1){
+    if(range == RANGE_4G){
       tft.drawRect(28, 49, 72, 11, featureColour2);
     }
-    if(range == 2){
+    if(range == RANGE_8G){
       tft.drawRect(28, 60, 72, 11, featureColour2);
     }
-    if(range == 3){
+    if(range == RANGE_16G){
       tft.drawRect(28, 71, 72, 11, featureColour2);
     }
 
   if(button2State == HIGH)
     {
+      waitforRelease(button2Pin);
       break;
     }
 
-    delay(200);
+    delay(1);
   }
 
   tft.fillRect(1, 17, 128, 130, bgColour);
@@ -714,55 +742,68 @@ void setupMenu(void){
 
     if(button1State == HIGH)
       {
-        if(mode < 2){
+        if(mode < WAVEFORM){
           mode++;
         } else {
-          mode = 0;
+          mode = INTERACTIVE;
         }
         tft.drawRect(28, 38, 72, 11, bgColour);
         tft.drawRect(28, 49, 72, 11, bgColour);
         tft.drawRect(28, 60, 72, 11, bgColour);
+
+        waitforRelease(button1Pin);
       }
 
-    if(mode == 0){
+    if(mode == INTERACTIVE){
       tft.drawRect(28, 38, 72, 11, featureColour2);
     }
-    if(mode == 1){
+    if(mode == POLAR){
       tft.drawRect(28, 49, 72, 11, featureColour2);
     }
-    if(mode == 2){
+    if(mode == WAVEFORM){
       tft.drawRect(28, 60, 72, 11, featureColour2);
     }
 
 
   if(button2State == HIGH)
     {
+      waitforRelease(button2Pin);
       break;
     }
 
-    delay(200);
+    delay(1);
   }
 
   tft.fillScreen(bgColour);
 }
 
 void splashScreen(void){
+  /**
   tft.fillScreen(bgColour);
   tft.setTextColor(textColour);
   tft.setTextSize(0);
   
   tft.setCursor(36, 29);
   tft.print("Very Small");
-  delay(400);
+  delay(200);
   tft.setCursor(30, 40);
   tft.print("Single Plane");
-  delay(400);
+  delay(200);
   tft.setCursor(42, 51);
   tft.print("Balancer");
   
-  delay(1000);
+  delay(500);
   tft.setCursor(1, 152);
   tft.print("v.01a");
   delay(2000);
+  **/
 }
 
+void waitforRelease(int button){
+  int buttonState = digitalRead(button);
+  while(buttonState == HIGH){
+    // wait for a release
+    buttonState = digitalRead(button);
+    delay(2);
+  }
+}
